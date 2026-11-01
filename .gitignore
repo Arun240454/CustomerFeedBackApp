@@ -1,0 +1,14 @@
+bin/
+obj/
+node_modules/
+dist/
+coverage/
+TestResults/
+.vs/
+*.user
+appsettings.Local.json
+.env
+.env.*
+!.env.example
+secrets.json
+logs/

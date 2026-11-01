@@ -1,0 +1,12 @@
+; Optional "property file" settings layer. Copy to src/<Service>/service.ini to use it.
+; Keys use the same names as appsettings.json, with sections in [brackets] (use "Section:Sub" for nesting).
+; Do NOT put secrets here - use user-secrets or environment variables.
+
+[Outbox]
+BatchSize=20
+PollSeconds=2
+MaxAttempts=5
+
+[Analytics]
+TopCategoryCount=5
+MaxWindowDays=365

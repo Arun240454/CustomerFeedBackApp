@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura,opencover</Format>
+          <!-- Generated EF migrations, program entry points and the design-time factory carry no logic worth measuring. -->
+          <ExcludeByFile>**/Migrations/**,**/Program.cs</ExcludeByFile>
+          <Exclude>[*]CustomerFeedback.Shared.Data.DesignTimeFactory</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
