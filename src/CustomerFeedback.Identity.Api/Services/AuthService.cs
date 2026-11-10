@@ -21,6 +21,7 @@ public class LoginSecurityOptions
 public interface IAuthService
 {
     Task<UserDto> RegisterAsync(RegisterRequest request, CancellationToken ct);
+    Task<IReadOnlyList<StoreOptionDto>> GetStoreOptionsAsync(CancellationToken ct);
     Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct);
     Task<UserDto> GetProfileAsync(int userId, CancellationToken ct);
 }
@@ -60,6 +61,15 @@ public sealed class AuthService(
         }
 
         var roleName = clean.Role ?? RoleNames.Customer;
+        var isManager = roleName == RoleNames.StoreManager;
+        if (isManager && !await db.Stores.AnyAsync(s => s.StoreId == clean.StoreId && s.IsActive, ct))
+        {
+            throw new RequestValidationException(new Dictionary<string, string[]>
+            {
+                ["storeId"] = ["The selected store was not found."],
+            });
+        }
+
         var now = clock.GetUtcNow().UtcDateTime;
         var user = new User
         {
@@ -68,15 +78,45 @@ public sealed class AuthService(
             FirstName = clean.FirstName,
             LastName = clean.LastName,
             PhoneNumber = clean.PhoneNumber,
-            RoleId = roleName == RoleNames.StoreManager ? RoleIds.StoreManager : RoleIds.Customer,
+            RoleId = isManager ? RoleIds.StoreManager : RoleIds.Customer,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         };
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
 
+        if (isManager)
+        {
+            await AssignToStoreAsync(user, clean.StoreId!.Value, now);
+        }
+
         logger.LogInformation("User {UserId} registered with role {Role}", user.UserId, roleName);
         return new UserDto(user.UserId, user.Email, user.FirstName, user.LastName, roleName);
+    }
+
+    public async Task<IReadOnlyList<StoreOptionDto>> GetStoreOptionsAsync(CancellationToken ct) =>
+        await db.Stores.AsNoTracking()
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.StoreName)
+            .Select(s => new StoreOptionDto(s.StoreId, s.StoreCode, s.StoreName, s.City))
+            .ToListAsync(ct);
+
+    /// <summary>Links a new manager to their store. If that fails the user row is removed so no manager is left without a store.</summary>
+    private async Task AssignToStoreAsync(User user, int storeId, DateTime now)
+    {
+        var assignment = new StoreManager { StoreId = storeId, UserId = user.UserId, AssignedAtUtc = now };
+        try
+        {
+            db.StoreManagers.Add(assignment);
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+        catch
+        {
+            db.Entry(assignment).State = EntityState.Detached;
+            db.Users.Remove(user);
+            await db.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct)

@@ -58,6 +58,19 @@ public class RegisterRequestValidatorTests
     [Fact]
     public void Accepts_a_valid_request() => _sut.Validate(Valid()).IsValid.Should().BeTrue();
 
+    [Fact]
+    public void Store_manager_must_choose_a_store()
+    {
+        var manager = Valid() with { Role = "StoreManager" };
+
+        _sut.Validate(manager).IsValid.Should().BeFalse();
+        _sut.Validate(manager with { StoreId = 0 }).IsValid.Should().BeFalse();
+        _sut.Validate(manager with { StoreId = 1 }).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Customer_does_not_need_a_store() => _sut.Validate(Valid() with { StoreId = null }).IsValid.Should().BeTrue();
+
     [Theory]
     [InlineData("short1A")]
     [InlineData("alllowercase1234")]
@@ -124,8 +137,8 @@ public class AuthServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private static RegisterRequest NewUser(string email = "New.User@Example.com", string? role = null) =>
-        new(email, "Passw0rdOK1", "New", "User", "+911234567890", role);
+    private static RegisterRequest NewUser(string email = "New.User@Example.com", string? role = null, int? storeId = null) =>
+        new(email, "Passw0rdOK1", "New", "User", "+911234567890", role, storeId);
 
     private async Task<User> SeedUserAsync(bool active = true)
     {
@@ -152,10 +165,65 @@ public class AuthServiceTests : IDisposable
     [Fact]
     public async Task Register_can_create_a_store_manager()
     {
-        var dto = await _sut.RegisterAsync(NewUser(role: RoleNames.StoreManager), CancellationToken.None);
+        var dto = await _sut.RegisterAsync(NewUser(role: RoleNames.StoreManager, storeId: 2), CancellationToken.None);
 
         dto.Role.Should().Be(RoleNames.StoreManager);
         (await _db.Users.SingleAsync()).RoleId.Should().Be(RoleIds.StoreManager);
+    }
+
+    [Fact]
+    public async Task Register_store_manager_is_linked_to_the_selected_store()
+    {
+        var dto = await _sut.RegisterAsync(NewUser(role: RoleNames.StoreManager, storeId: 2), CancellationToken.None);
+
+        var link = await _db.StoreManagers.SingleAsync();
+        link.UserId.Should().Be(dto.UserId);
+        link.StoreId.Should().Be(2);
+        link.AssignedAtUtc.Should().Be(TestSupport.Now.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task Register_store_manager_requires_a_store()
+    {
+        var act = () => _sut.RegisterAsync(NewUser(role: RoleNames.StoreManager), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<RequestValidationException>()).Which.Errors.Should().ContainKey("storeId");
+        (await _db.Users.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Register_store_manager_rejects_an_unknown_or_inactive_store()
+    {
+        (await _db.Stores.FindAsync(2))!.IsActive = false;
+        await _db.SaveChangesAsync();
+
+        foreach (var storeId in new[] { 999, 2 })
+        {
+            var act = () => _sut.RegisterAsync(NewUser(role: RoleNames.StoreManager, storeId: storeId), CancellationToken.None);
+            (await act.Should().ThrowAsync<RequestValidationException>()).Which.Errors.Should().ContainKey("storeId");
+        }
+
+        (await _db.Users.AnyAsync()).Should().BeFalse();
+        (await _db.StoreManagers.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Register_customer_ignores_any_store_and_creates_no_assignment()
+    {
+        await _sut.RegisterAsync(NewUser(storeId: 1), CancellationToken.None);
+
+        (await _db.StoreManagers.AnyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Store_options_list_only_active_stores_by_name()
+    {
+        (await _db.Stores.FindAsync(1))!.IsActive = false;
+        await _db.SaveChangesAsync();
+
+        var stores = await _sut.GetStoreOptionsAsync(CancellationToken.None);
+
+        stores.Select(s => s.StoreName).Should().Equal("Indiranagar Store");
     }
 
     [Fact]

@@ -26,6 +26,11 @@ describe('validateLogin', () => {
 
 describe('validateRegister', () => {
   it('accepts a valid registration', () => expect(validateRegister(validRegistration)).toEqual({}));
+  it('requires a store only for store managers', () => {
+    expect(validateRegister({ ...validRegistration, role: 'Customer', storeId: '' })).toEqual({});
+    expect(validateRegister({ ...validRegistration, role: 'StoreManager', storeId: '' }).storeId).toMatch(/store/i);
+    expect(validateRegister({ ...validRegistration, role: 'StoreManager', storeId: '2' })).toEqual({});
+  });
   it.each([
     ['short1A', 'at least 10'],
     ['alllowercase123', 'uppercase'],

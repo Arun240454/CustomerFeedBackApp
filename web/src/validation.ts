@@ -23,6 +23,7 @@ export function validateLogin(values: { email: string; password: string }): Erro
 
 export function validateRegister(values: {
   email: string; password: string; confirmPassword: string; firstName: string; lastName: string; phoneNumber: string;
+  role?: string; storeId?: string;
 }): Errors {
   const errors = validateLogin(values);
   const password = values.password;
@@ -41,6 +42,7 @@ export function validateRegister(values: {
   }
   const phone = values.phoneNumber.trim();
   if (phone && !PHONE.test(phone)) errors.phoneNumber = 'Use 7-20 digits; + ( ) - and spaces are allowed.';
+  if (values.role === 'StoreManager' && !values.storeId) errors.storeId = 'Select the store you manage.';
   return errors;
 }
 

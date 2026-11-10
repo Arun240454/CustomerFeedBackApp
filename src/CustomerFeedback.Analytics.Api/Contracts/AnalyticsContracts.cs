@@ -34,3 +34,20 @@ public sealed record RecentFeedbackDto(
     DateTime SubmittedAtUtc,
     bool IsAnonymous,
     IReadOnlyList<string> Categories);
+
+/// <summary>Everything the monthly PDF report needs for one store and one calendar month.</summary>
+public sealed record MonthlyReportDto(
+    int StoreId,
+    string StoreName,
+    int Year,
+    int Month,
+    DateTime GeneratedAtUtc,
+    int TotalFeedback,
+    decimal? AvgRating,
+    int PreviousMonthFeedback,
+    decimal? PreviousMonthAvgRating,
+    decimal? Delta,
+    string TrendDirection,
+    IReadOnlyList<RatingBucketDto> RatingDistribution,
+    IReadOnlyList<DailyTrendPoint> DailyTrend,
+    IReadOnlyList<CategoryScoreDto> Categories);

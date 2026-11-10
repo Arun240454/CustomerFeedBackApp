@@ -20,6 +20,12 @@ public static class AuthEndpoints
             .RequireRateLimiting(RateLimitPolicy)
             .AllowAnonymous();
 
+        // Public so the registration form can list stores before the user has an account.
+        group.MapGet("/stores", async (IAuthService auth, CancellationToken ct) =>
+                Results.Ok(await auth.GetStoreOptionsAsync(ct)))
+            .RequireRateLimiting(RateLimitPolicy)
+            .AllowAnonymous();
+
         group.MapPost("/login", async (LoginRequest request, IAuthService auth, CancellationToken ct) =>
                 Results.Ok(await auth.LoginAsync(request, ct)))
             .RequireRateLimiting(RateLimitPolicy)

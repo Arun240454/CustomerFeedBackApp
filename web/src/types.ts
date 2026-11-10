@@ -63,3 +63,22 @@ export interface RecentFeedback {
   isAnonymous: boolean;
   categories: string[];
 }
+
+export interface StoreOption { storeId: number; storeCode: string; storeName: string; city?: string | null }
+
+export interface MonthlyReport {
+  storeId: number;
+  storeName: string;
+  year: number;
+  month: number;
+  generatedAtUtc: string;
+  totalFeedback: number;
+  avgRating: number | null;
+  previousMonthFeedback: number;
+  previousMonthAvgRating: number | null;
+  delta: number | null;
+  trendDirection: StoreSummary['trendDirection'];
+  ratingDistribution: { rating: number; count: number }[];
+  dailyTrend: DailyPoint[];
+  categories: { categoryId: number; categoryName: string; ratingCount: number; avgRating: number }[];
+}

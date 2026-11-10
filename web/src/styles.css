@@ -119,3 +119,10 @@ input[type='checkbox'], input[type='radio'] { width: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
 th { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+
+.modal { border: 1px solid var(--border); border-radius: 12px; padding: 0; background: var(--surface); color: var(--text); width: min(440px, calc(100vw - 32px)); }
+.modal::backdrop { background: rgb(0 0 0 / 0.5); }
+.modal-body { padding: 20px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.modal-head h2 { margin: 0; font-size: 1.15rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }

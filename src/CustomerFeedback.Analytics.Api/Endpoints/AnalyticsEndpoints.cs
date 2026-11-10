@@ -18,6 +18,9 @@ public static class AnalyticsEndpoints
         group.MapGet("/stores/{storeId:int}/feedback/recent", async (int storeId, HttpContext http, ISummaryService svc, CancellationToken ct, int count = 10) =>
             Results.Ok(await svc.GetRecentFeedbackAsync(http.User.GetUserId(), storeId, count, ct)));
 
+        group.MapGet("/stores/{storeId:int}/report/monthly", async (int storeId, int year, int month, HttpContext http, ISummaryService svc, CancellationToken ct) =>
+            Results.Ok(await svc.GetMonthlyReportAsync(http.User.GetUserId(), storeId, year, month, ct)));
+
         return app;
     }
 }

@@ -1,5 +1,5 @@
 import type {
-  AuthResponse, Category, MyFeedback, Paged, RecentFeedback, Store, StoreSummary, SubmitFeedbackInput, User,
+  AuthResponse, Category, MonthlyReport, MyFeedback, Paged, RecentFeedback, Store, StoreOption, StoreSummary, SubmitFeedbackInput, User,
 } from './types';
 
 /** Standardised error body (RFC 7807) returned by every service. */
@@ -55,8 +55,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
 }
 
 export const api = {
-  register: (body: { email: string; password: string; firstName: string; lastName: string; phoneNumber?: string; role: string }) =>
+  register: (body: { email: string; password: string; firstName: string; lastName: string; phoneNumber?: string; role: string; storeId?: number }) =>
     request<User>('/api/auth/register', { method: 'POST', body }),
+  registrationStores: () => request<StoreOption[]>('/api/auth/stores'),
   login: (body: { email: string; password: string }) => request<AuthResponse>('/api/auth/login', { method: 'POST', body }),
   stores: () => request<Store[]>('/api/stores'),
   categories: () => request<Category[]>('/api/categories'),
@@ -66,4 +67,6 @@ export const api = {
   managedStores: () => request<{ storeId: number; storeCode: string; storeName: string; city?: string }[]>('/api/analytics/stores'),
   summary: (storeId: number, days: number) => request<StoreSummary>(`/api/analytics/stores/${storeId}/summary?days=${days}`),
   recent: (storeId: number, count = 8) => request<RecentFeedback[]>(`/api/analytics/stores/${storeId}/feedback/recent?count=${count}`),
+  monthlyReport: (storeId: number, year: number, month: number) =>
+    request<MonthlyReport>(`/api/analytics/stores/${storeId}/report/monthly?year=${year}&month=${month}`),
 };

@@ -10,7 +10,11 @@ public sealed record RegisterRequest(
     string FirstName,
     string LastName,
     string? PhoneNumber,
-    string? Role);
+    string? Role,
+    int? StoreId = null);
+
+/// <summary>A store a new store manager can choose during registration.</summary>
+public sealed record StoreOptionDto(int StoreId, string StoreCode, string StoreName, string? City);
 
 public sealed record LoginRequest(string Email, string Password);
 
@@ -46,6 +50,11 @@ public sealed partial class RegisterRequestValidator : AbstractValidator<Registe
         RuleFor(x => x.Role)
             .Must(r => r is null or RoleNames.Customer or RoleNames.StoreManager)
             .WithMessage("Role must be Customer or StoreManager.");
+
+        RuleFor(x => x.StoreId)
+            .NotNull().WithMessage("Select the store you manage.")
+            .GreaterThan(0).WithMessage("Select the store you manage.")
+            .When(x => x.Role == RoleNames.StoreManager);
     }
 }
 

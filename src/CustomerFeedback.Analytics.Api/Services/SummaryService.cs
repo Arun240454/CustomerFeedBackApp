@@ -18,6 +18,7 @@ public interface ISummaryService
     Task<IReadOnlyList<ManagedStoreDto>> GetStoresAsync(int managerId, CancellationToken ct);
     Task<StoreSummaryDto> GetSummaryAsync(int managerId, int storeId, int? days, CancellationToken ct);
     Task<IReadOnlyList<RecentFeedbackDto>> GetRecentFeedbackAsync(int managerId, int storeId, int count, CancellationToken ct);
+    Task<MonthlyReportDto> GetMonthlyReportAsync(int managerId, int storeId, int year, int month, CancellationToken ct);
 }
 
 /// <summary>Pure trend maths, kept separate from IO so it is trivially testable.</summary>
@@ -59,6 +60,9 @@ public sealed class SummaryService(
     TimeProvider clock,
     ILogger<SummaryService> logger) : ISummaryService
 {
+    private const int MinReportYear = 2000;
+    private const int ReportCategoryLimit = 20;
+
     private readonly AnalyticsOptions _options = options.Value;
 
     public Task<IReadOnlyList<ManagedStoreDto>> GetStoresAsync(int managerId, CancellationToken ct) =>
@@ -103,6 +107,51 @@ public sealed class SummaryService(
     {
         await RequireStoreAsync(managerId, storeId, ct);
         return await repository.GetRecentFeedbackAsync(storeId, Math.Clamp(count, 1, 50), ct);
+    }
+
+    public async Task<MonthlyReportDto> GetMonthlyReportAsync(int managerId, int storeId, int year, int month, CancellationToken ct)
+    {
+        var store = await RequireStoreAsync(managerId, storeId, ct);
+
+        var now = clock.GetUtcNow().UtcDateTime;
+        var today = DateOnly.FromDateTime(now);
+        if (year < MinReportYear || year > today.Year || month < 1 || month > 12 || new DateOnly(year, month, 1) > today)
+        {
+            throw new RequestValidationException(new Dictionary<string, string[]>
+            {
+                ["month"] = ["Choose a month that is not in the future."],
+            });
+        }
+
+        var from = new DateOnly(year, month, 1);
+        var monthEnd = from.AddMonths(1).AddDays(-1);
+        var to = monthEnd < today ? monthEnd : today;       // do not pad a running month with future days
+        var previousFrom = from.AddMonths(-1);
+        var previousTo = from.AddDays(-1);
+
+        // One index seek covers the previous and the selected month; split in memory.
+        var daily = await repository.GetDailyAggregatesAsync(storeId, previousFrom, to, ct);
+        var current = daily.Where(d => d.Date >= from).ToList();
+        var previous = daily.Where(d => d.Date <= previousTo).ToList();
+
+        var count = current.Sum(d => d.Count);
+        var avg = TrendCalculator.Average(count, current.Sum(d => d.RatingSum));
+        var previousCount = previous.Sum(d => d.Count);
+        var previousAvg = TrendCalculator.Average(previousCount, previous.Sum(d => d.RatingSum));
+
+        var distribution = await repository.GetRatingDistributionAsync(storeId, from, to, ct);
+        var categories = await repository.GetTopCategoriesAsync(storeId, from, to, ReportCategoryLimit, ct);
+
+        logger.LogInformation("Monthly report built for store {StoreId}, manager {ManagerId}, {Year}-{Month:00}, {Count} submissions",
+            storeId, managerId, year, month, count);
+
+        return new MonthlyReportDto(
+            store.StoreId, store.StoreName, year, month, now, count, avg, previousCount, previousAvg,
+            avg is not null && previousAvg is not null ? avg - previousAvg : null,
+            TrendCalculator.Direction(avg, previousAvg),
+            Enumerable.Range(1, 5).Select(r => new RatingBucketDto(r, distribution.FirstOrDefault(b => b.Rating == r)?.Count ?? 0)).ToList(),
+            TrendCalculator.BuildDailySeries(current, from, to),
+            categories.Select(c => new CategoryScoreDto(c.CategoryId, c.CategoryName, c.Count, TrendCalculator.Average(c.Count, c.RatingSum) ?? 0)).ToList());
     }
 
     private int ClampDays(int? days)

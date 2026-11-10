@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { homePathFor, useAuth } from '../auth';
 import { ErrorBanner, Field } from '../components/Field';
+import type { StoreOption } from '../types';
 import { sanitizeText, validateRegister, type Errors } from '../validation';
 
 const initial = {
-  email: '', password: '', confirmPassword: '', firstName: '', lastName: '', phoneNumber: '', role: 'Customer',
+  email: '', password: '', confirmPassword: '', firstName: '', lastName: '', phoneNumber: '', role: 'Customer', storeId: '',
 };
 
 export default function RegisterPage() {
@@ -16,6 +17,15 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [serverError, setServerError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stores, setStores] = useState<StoreOption[] | null>(null);
+  const [storesFailed, setStoresFailed] = useState(false);
+  const isManager = values.role === 'StoreManager';
+
+  // The store list is only needed (and only fetched) once someone picks the manager role.
+  useEffect(() => {
+    if (!isManager || stores) return;
+    api.registrationStores().then(setStores).catch(() => setStoresFailed(true));
+  }, [isManager, stores]);
 
   const set = (key: keyof typeof initial) => (e: { target: { value: string } }) => setValues({ ...values, [key]: e.target.value });
 
@@ -35,6 +45,7 @@ export default function RegisterPage() {
         lastName: sanitizeText(values.lastName),
         phoneNumber: values.phoneNumber.trim() || undefined,
         role: values.role,
+        storeId: isManager ? Number(values.storeId) : undefined,
       });
       const user = await login(values.email, values.password);
       navigate(homePathFor(user.role), { replace: true });
@@ -83,8 +94,18 @@ export default function RegisterPage() {
             </select>
           )}
         </Field>
-        {values.role === 'StoreManager' && (
-          <p className="hint">Store managers see store data only after an administrator assigns them to a store.</p>
+        {isManager && (
+          <Field id="storeId" label="Store you manage" error={errors.storeId}
+            hint={storesFailed ? undefined : 'You will see feedback and reports for this store.'}>
+            {(p) => (
+              <select {...p} value={values.storeId} onChange={set('storeId')} disabled={!stores}>
+                <option value="">{stores ? 'Select a store' : storesFailed ? 'Could not load stores' : 'Loading stores…'}</option>
+                {stores?.map((s) => (
+                  <option key={s.storeId} value={s.storeId}>{s.storeName}{s.city ? ` - ${s.city}` : ''}</option>
+                ))}
+              </select>
+            )}
+          </Field>
         )}
         <button className="btn" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
       </form>

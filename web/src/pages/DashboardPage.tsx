@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import { ErrorBanner } from '../components/Field';
+import { MonthlyReportModal } from '../components/MonthlyReportModal';
 import { StarRating } from '../components/StarRating';
 import { TrendChart } from '../components/TrendChart';
 import type { RecentFeedback, StoreSummary } from '../types';
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<StoreSummary | null>(null);
   const [recent, setRecent] = useState<RecentFeedback[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const fail = (err: unknown) => setError(err instanceof ApiError ? err : new ApiError('Could not load the dashboard.', 0));
 
@@ -63,7 +65,13 @@ export default function DashboardPage() {
         <select aria-label="Time window" value={days} onChange={(e) => setDays(Number(e.target.value))}>
           {[7, 30, 90].map((d) => <option key={d} value={d}>Last {d} days</option>)}
         </select>
+        <button type="button" className="btn" onClick={() => setReportOpen(true)} disabled={storeId === null}>
+          Monthly feedback report
+        </button>
       </div>
+      {reportOpen && storeId !== null && (
+        <MonthlyReportModal storeId={storeId} storeName={summary?.storeName ?? 'Store'} onClose={() => setReportOpen(false)} />
+      )}
 
       <ErrorBanner message={error?.message ?? null} traceId={error?.traceId} />
       {!summary && !error && <p className="muted">Loading…</p>}

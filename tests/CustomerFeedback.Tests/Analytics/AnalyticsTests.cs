@@ -137,6 +137,66 @@ public class SummaryServiceTests
     }
 
     [Fact]
+    public async Task Monthly_report_covers_a_past_month_and_compares_with_the_month_before()
+    {
+        // Test clock is 2026-06-15, so May 2026 is complete and April is the comparison month.
+        SetupDaily(
+            new DailyAggregate(new DateOnly(2026, 5, 1), 2, 10),    // May: avg 4.5 over 4 ratings
+            new DailyAggregate(new DateOnly(2026, 5, 31), 2, 8),
+            new DailyAggregate(new DateOnly(2026, 4, 30), 2, 6),    // April: avg 3
+            new DailyAggregate(new DateOnly(2026, 4, 1), 2, 6));
+
+        var report = await _sut.GetMonthlyReportAsync(10, 1, 2026, 5, CancellationToken.None);
+
+        report.StoreName.Should().Be("Connaught Place Store");
+        report.TotalFeedback.Should().Be(4);
+        report.AvgRating.Should().Be(4.5m);
+        report.PreviousMonthFeedback.Should().Be(4);
+        report.PreviousMonthAvgRating.Should().Be(3.0m);
+        report.Delta.Should().Be(1.5m);
+        report.TrendDirection.Should().Be("improving");
+        report.DailyTrend.Should().HaveCount(31);
+        report.RatingDistribution.Should().HaveCount(5);
+        report.Categories.Single().CategoryName.Should().Be("Staff Service");
+        _repo.Verify(r => r.GetDailyAggregatesAsync(1, new DateOnly(2026, 4, 1), new DateOnly(2026, 5, 31), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Monthly_report_for_the_running_month_stops_at_today()
+    {
+        SetupDaily();
+
+        var report = await _sut.GetMonthlyReportAsync(10, 1, 2026, 6, CancellationToken.None);
+
+        report.DailyTrend.Should().HaveCount(15);
+        report.DailyTrend[^1].Date.Should().Be(new DateOnly(2026, 6, 15));
+        report.TrendDirection.Should().Be("insufficient_data");
+    }
+
+    [Theory]
+    [InlineData(2026, 7)]   // future month
+    [InlineData(2027, 1)]   // future year
+    [InlineData(2026, 0)]
+    [InlineData(2026, 13)]
+    [InlineData(1999, 5)]
+    public async Task Monthly_report_rejects_invalid_or_future_periods(int year, int month)
+    {
+        var act = () => _sut.GetMonthlyReportAsync(10, 1, year, month, CancellationToken.None);
+
+        (await act.Should().ThrowAsync<RequestValidationException>()).Which.Errors.Should().ContainKey("month");
+    }
+
+    [Fact]
+    public async Task Monthly_report_is_forbidden_for_a_store_the_manager_is_not_assigned_to()
+    {
+        _repo.Setup(r => r.GetManagedStoreAsync(2, 10, It.IsAny<CancellationToken>())).ReturnsAsync((ManagedStoreDto?)null);
+
+        var act = () => _sut.GetMonthlyReportAsync(10, 2, 2026, 5, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
     public async Task Summary_is_forbidden_for_a_store_the_manager_is_not_assigned_to()
     {
         var act = () => _sut.GetSummaryAsync(10, 2, null, CancellationToken.None);
